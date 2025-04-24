@@ -1,11 +1,11 @@
 The migration to post-quantum cryptography is being held back by buggy servers
 that do not correctly implement TLS. Due to a bug, these servers reject
-connections that use post-quantum-secure cryptography, instead of negotiating
+connections that use post-quantum cryptography, instead of negotiating
 classical cryptography if they do not support post-quantum cryptography.
 
 ## What is the bug?
 
-The Internet is currently beginning a migration to post-quantum secure
+The Internet is currently beginning a migration to quantum-resistant
 cryptography. This migration is important because large-scale quantum computers
 will be powerful enough to break most public-key cryptosystems currently in use
 and compromise digital communications on the Internet and elsewhere. It is
@@ -58,6 +58,11 @@ _now_.
 To start mitigating the store-then-decrypt attack, [Chrome is in the
 process][chrome-kyber] of rolling out a post-quantum key exchange.
 
+## What is the status of post-quantum cryptography in browsers?
+
+Post-quantum key exchange is rolling out in browsers. See
+[Deployment](#deployment).
+
 ## What about authentication?
 
 Quantum computers are capable of breaking the digital signature algorithms used
@@ -103,10 +108,22 @@ start this transition, even if you aren't planning on participating right now.
 
 ## How can I tell if my server has this bug?
 
-You can use [this Python script][test-py] to test your server. You can also
+The best way to test your server is to use [this Python script][test-py] to test your server. Alternatively,
 enable `chrome://flags/#enable-tls13-kyber` and then attempt to make an HTTPS
-connection to your server from Chrome. If the connection fails with
-ERR_CONNECTION_RESET or similar, the server is buggy.
+connection to your server from Chrome, or make a connection from Chrome 131 or newer on desktop. If the connection fails with
+ERR_CONNECTION_RESET or similar, the server is buggy. However, it is more likely
+that network conditions may mask the bug when testing with Chrome, rather than
+the Python script.
+
+## Does this bug apply to QUIC?
+
+The QUIC _protocol_ explicitly does not assume a single-packet ClientHello.
+While it is technically possible to have this bug, it's much less likely due to
+the nature of UDP. Also:
+* QUIC is much newer so there's less long of a tail of buggy endpoints and
+  middleware to worry about
+* QUIC is typically deployed with a TCP fallback/race, so intolerance would look
+  like a TCP fallback and be "fine"
 
 ## How do I patch the bug if I'm an implementor?
 
@@ -138,6 +155,40 @@ cryptography. These clients are then unable to load sites served by the buggy
 server. This site serves as a reference for why the bug is important, and how to
 identify and fix it.
 
+---
+
+## Deployment { id="deployment" }
+
+Browser | Windows        | Mac           | Linux         | ChromeOS      | Android              | iOS
+------- | -------------- | ------------- | ------------- | ------------- | -------------------- | -----------
+Chrome  | Chrome 124     | Chrome 124    | Chrome 124    | Chrome 124    | Chrome 131           | n/a[^1]
+Firefox | `about:config` |`about:config` |`about:config` | n/a[^2]       |`about:config`        | n/a[^1]
+Safari  | Unavailable    | Unavailable   | Unavailable   | n/a[^2]       | n/a[^3]              | Unavailable
+
+## Known Incompatibilities
+
+Product | Status | Discovered | Via         | Patched | Links
+------- | ------ | ---------- | ----------- | ------- | ------------------
+Vercel  | ✅     | 2023-08-15 | Chrome Beta | 2023-08-23         | [Twitter][twitter-vercel]
+ZScalar | ✅     | 2023-08-17 | Chrome Beta | 2023-09-28         |
+Cisco   |        | 2024-04-23 | Chrome 124 | Unknown            | [Cisco Bug][cisco-bug]
+Envoy   | ✅     | 2024-04-29 | Chrome 124  | n/a (config-only ) | [Github][envoy-github-issue]
+Ingress Nginx | ❌[^5] | 2024-06-03 | Chrome 124 |  | [Github][ingress-nginx-github-issue]
+Lightspeed Rocket | | 2024-07-16 | Chrome 124 | Unknown[^4] |
+Palo Alto | ✅ | 2024-10-25 | Go 1.23 | 2025-03-27 | [Palo Alto Bug][pa-bug], [Github][github-go-pa] 
+Broadcom ProxySG | ✅ | 2024-10-31 | Go 1.23 | Late 2024 (7.3.22.1) | [Github][go-70139]
+Apache Trafficserver | ❌ | 2024-11-13 | Chrome |  | [Github][github-apache]
+
+_Table last updated 2025-04-04_
+
+[^1]: All browsers on iOS internally use WebKit, and so the rollout is dependent on Apple.
+[^2]: There is no Firefox or Safari for ChromeOS.
+[^3]: There is no Safari for Android.
+[^4]: Older devices are affected. New devices may or may not be affected.
+[^5]: Only affects TLS passthrough. Using ingress-nginx to terminate TLS is not affected.
+[^6]: This may only affect certain PA products, and certain version ranges. Details unknown.
+
+
 [test-py]: https://github.com/dadrian/tldr.fail/blob/main/tldr_fail_test.py
 [chrome-kyber]: https://blog.chromium.org/2023/08/protecting-chrome-traffic-with-hybrid.html
 [draft-kyber]: https://datatracker.ietf.org/doc/html/draft-cfrg-schwabe-kyber
@@ -145,3 +196,12 @@ identify and fix it.
 [dilithium]: https://pq-crystals.org/dilithium/index.shtml
 [nist-competition]: https://csrc.nist.gov/projects/post-quantum-cryptography
 [nist]: https://nist.gov
+
+[twitter-vercel]: https://twitter.com/juliusrickert/status/1691023958999760896
+[cisco-bug]: https://quickview.cloudapps.cisco.com/quickview/bug/CSCwj82736
+[envoy-github-issue]: https://github.com/envoyproxy/envoy/issues/33850
+[ingress-nginx-github-issue]: https://github.com/kubernetes/ingress-nginx/issues/11424#issue-2331992771
+[github-go-pa]: https://github.com/golang/go/issues/70047#issuecomment-2437695874
+[github-apache]: https://github.com/apache/trafficserver/issues/11758
+[go-70139]: https://github.com/golang/go/issues/70139
+[pa-bug]: https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-release-notes/pan-os-11-1-4-known-and-addressed-issues/pan-os-11-1-4-known-issues
